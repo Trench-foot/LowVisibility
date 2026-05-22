@@ -1,4 +1,6 @@
-﻿using BattleTech;
+﻿using CustAmmoCategories;
+using IRBTModUtils;
+using LowVisibility.Helper;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -6,76 +8,92 @@ using UnityEngine;
 using us.frostraptor.modUtils;
 using us.frostraptor.modUtils.math;
 
-namespace LowVisibility.Object {
+namespace LowVisibility.Object
+{
 
     // <signature_modifier>_<details_modifier> _<mediumAttackMod>_<longAttackmod> _<extremeAttackMod>
-    public class Stealth {
+    public class Stealth
+    {
         public float SignatureMulti = 0.0f;
         public int DetailsMod = 0;
         public int MediumRangeAttackMod = 0;
         public int LongRangeAttackMod = 0;
         public int ExtremeRangeAttackMod = 0;
 
-        public override string ToString() { return $"SignatureMulti:{SignatureMulti} details:{DetailsMod} " +
-                $"rangeMods:{MediumRangeAttackMod} / {LongRangeAttackMod} / {ExtremeRangeAttackMod}";  }
+        public override string ToString()
+        {
+            return $"SignatureMulti:{SignatureMulti} details:{DetailsMod} " +
+            $"rangeMods:{MediumRangeAttackMod} / {LongRangeAttackMod} / {ExtremeRangeAttackMod}";
+        }
     }
 
-    // <initialVisibility>_<initialModifier>_<stepsUntilDecay>
-    public class Mimetic {
-        public float VisibilityMulti = 0.0f;
-        public int AttackMod = 0;
+    // <maxCharges>_<visibilityModPerCharge>_<attackModPerCharge>_<hexesUntilDecay>
+    public class Mimetic
+    {
+        public int MaxCharges = 0;
+        public float VisibilityMod = 0f;
+        public float AttackMod = 0f;
         public int HexesUntilDecay = 0;
 
-        public override string ToString() {
-            return $"visibilityMulti:{VisibilityMulti} attackMod:{AttackMod} hexesUntilDecay:{HexesUntilDecay}";
+        public override string ToString()
+        {
+            return $"maxCharges: {MaxCharges} visibilityMod:{VisibilityMod} attackMod:{AttackMod} hexesUntilDecay:{HexesUntilDecay}";
         }
     }
 
     // <initialAttackModifier>_<attackModifierCap>_<hexesUntilDecay>
-    public class ZoomVision {
+    public class ZoomAttack
+    {
         public int AttackMod = 0;
         public int AttackCap = 0;
         public int HexesUntilDecay = 0;
         public readonly int MaximumRange = 0;
 
-        public ZoomVision(int mod, int cap, int decay) {
+        public ZoomAttack(int mod, int cap, int decay)
+        {
             this.AttackMod = mod;
             this.AttackCap = cap;
             this.HexesUntilDecay = decay;
             this.MaximumRange = HexUtils.HexesInRange(mod, cap, decay) * 30;
         }
 
-        public override string ToString() {
+        public override string ToString()
+        {
             return $"attackMod:{AttackMod} attackCap:{AttackCap} hexesUntilDecay:{HexesUntilDecay} maximumRange: {MaximumRange}";
         }
     }
 
     // <initialAttackModifier>_<heatDivisorForStep>_<hexesUntilDecay>
-    public class HeatVision {
+    public class HeatVision
+    {
         public int AttackMod = 0;
         public float HeatDivisor = 1f;
         public int MaximumRange = 0;
 
-        public override string ToString() {
+        public override string ToString()
+        {
             return $"attackMod:{AttackMod} heatDivisor:{HeatDivisor} maximumRange: {MaximumRange}";
         }
     }
 
     // <signatureMod>_<detailsMod>_<attackMod>
-    public class NarcEffect {
+    public class NarcEffect
+    {
         public int AttackMod = 0;
         public float SignatureMod = 0.0f;
         public int DetailsMod = 0;
     }
 
     // <signatureMod>_<detailsMod>_<attackMod>
-    public class TagEffect {
+    public class TagEffect
+    {
         public int AttackMod = 0;
         public float SignatureMod = 0.0f;
         public int DetailsMod = 0;
     }
 
-    public class EWState {
+    public class EWState
+    {
 
         private readonly AbstractActor actor;
 
@@ -92,7 +110,8 @@ namespace LowVisibility.Object {
         private Stealth stealth = null;
         private Mimetic mimetic = null;
 
-        private ZoomVision zoomVision = null;
+        private ZoomAttack zoomAttack = null;
+        private int zoomVisionRange = 0;
         private HeatVision heatVision = null;
 
         private NarcEffect narcEffect = null;
@@ -104,14 +123,16 @@ namespace LowVisibility.Object {
         private bool sharesVision = false;
 
         // Necessary for serialization
-        public EWState() {}
+        public EWState() { }
 
         // Normal Constructor
-        public EWState(AbstractActor actor) {
+        public EWState(AbstractActor actor)
+        {
             this.actor = actor;
             // Pilot effects; cache and only read once
             tacticsMod = actor.StatCollection.GetValue<int>(ModStats.TacticsMod);
-            if (tacticsMod == 0 && actor.GetPilot() != null) {
+            if (tacticsMod == 0 && actor.GetPilot() != null)
+            {
                 tacticsMod = SkillUtils.GetTacticsModifier(actor.GetPilot());
                 actor.StatCollection.Set<int>(ModStats.TacticsMod, tacticsMod);
             }
@@ -134,78 +155,113 @@ namespace LowVisibility.Object {
 
             // Stealth - <signature_modifier>_<details_modifier>_<mediumAttackMod>_<longAttackmod>_<extremeAttackMod>
             string rawValue = actor.StatCollection.GetValue<string>(ModStats.StealthEffect);
-            if (!string.IsNullOrEmpty(rawValue)) {
+            if (!string.IsNullOrEmpty(rawValue))
+            {
                 string[] tokens = rawValue.Split('_');
-                if (tokens.Length == 5) {
-                    try {
-                        stealth = new Stealth {
+                if (tokens.Length == 5)
+                {
+                    try
+                    {
+                        stealth = new Stealth
+                        {
                             SignatureMulti = float.Parse(tokens[0]),
                             DetailsMod = Int32.Parse(tokens[1]),
                             MediumRangeAttackMod = Int32.Parse(tokens[2]),
                             LongRangeAttackMod = Int32.Parse(tokens[3]),
                             ExtremeRangeAttackMod = Int32.Parse(tokens[4])
                         };
-                    } catch (Exception) {
+                    }
+                    catch (Exception)
+                    {
                         Mod.Log.Info?.Write($"Failed to tokenize StealthEffect value: ({rawValue}). Discarding!");
                         stealth = null;
                     }
-                } else {
+                }
+                else
+                {
                     Mod.Log.Info?.Write($"WARNING: Invalid StealthEffect value: ({rawValue}) found. Discarding!");
                 }
             }
 
-            // Mimetic - <initialVisibility>_<initialModifier>_<stepsUntilDecay>
+            // Mimetic - <maxCharges>_<visibilityModPerCharge>_<attackModPerCharge>_<hexesUntilDecay>
             rawValue = actor.StatCollection.GetValue<string>(ModStats.MimeticEffect);
-            if (!string.IsNullOrEmpty(rawValue)) {
+            if (!string.IsNullOrEmpty(rawValue))
+            {
                 string[] tokens = rawValue.Split('_');
-                if (tokens.Length == 3) {
-                    try {
-                        mimetic = new Mimetic {
-                            VisibilityMulti = float.Parse(tokens[0]),
-                            AttackMod = Int32.Parse(tokens[1]),
-                            HexesUntilDecay = Int32.Parse(tokens[2]),
+                if (tokens.Length == 4)
+                {
+                    try
+                    {
+                        mimetic = new Mimetic
+                        {
+                            MaxCharges = Int32.Parse(tokens[0]),
+                            VisibilityMod = float.Parse(tokens[1]),
+                            AttackMod = float.Parse(tokens[2]),
+                            HexesUntilDecay = Int32.Parse(tokens[3]),
                         };
-                    } catch (Exception) {
+                    }
+                    catch (Exception)
+                    {
                         Mod.Log.Info?.Write($"Failed to tokenize Mimetic value: ({rawValue}). Discarding!");
                         mimetic = null;
                     }
-                } else {
+                }
+                else
+                {
                     Mod.Log.Info?.Write($"WARNING: Invalid Mimetic value: ({rawValue}) found. Discarding!");
                 }
             }
 
-            // ZoomVision - <initialAttackModifier>_<attackModifierCap>_<hexesUntilDecay>
-            rawValue = actor.StatCollection.GetValue<string>(ModStats.ZoomVision);
-            if (!string.IsNullOrEmpty(rawValue)) {
+            // ZoomAttack - <initialAttackModifier>_<attackModifierCap>_<hexesUntilDecay>
+            rawValue = actor.StatCollection.GetValue<string>(ModStats.ZoomAttack);
+            if (!string.IsNullOrEmpty(rawValue))
+            {
                 string[] tokens = rawValue.Split('_');
-                if (tokens.Length == 3) {
-                    try {
-                        zoomVision = new ZoomVision(Int32.Parse(tokens[0]), Int32.Parse(tokens[1]), Int32.Parse(tokens[2]));
-                    } catch (Exception) {
-                        Mod.Log.Info?.Write($"Failed to tokenize ZoomVision value: ({rawValue}). Discarding!");
-                        zoomVision = null;
+                if (tokens.Length == 3)
+                {
+                    try
+                    {
+                        zoomAttack = new ZoomAttack(Int32.Parse(tokens[0]), Int32.Parse(tokens[1]), Int32.Parse(tokens[2]));
                     }
-                } else {
-                    Mod.Log.Info?.Write($"WARNING: Invalid ZoomVision value: ({rawValue}) found. Discarding!");
+                    catch (Exception)
+                    {
+                        Mod.Log.Info?.Write($"Failed to tokenize ZoomAttack value: ({rawValue}). Discarding!");
+                        zoomAttack = null;
+                    }
+                }
+                else
+                {
+                    Mod.Log.Info?.Write($"WARNING: Invalid ZoomAttack value: ({rawValue}) found. Discarding!");
                 }
             }
 
+            // ZoomVision - range only
+            zoomVisionRange = actor.StatCollection.GetValue<int>(ModStats.ZoomVision);
+
             // HeatVision - <initialAttackModifier>_<heatDivisorForStep>__<maximumRange>
             rawValue = actor.StatCollection.GetValue<string>(ModStats.HeatVision);
-            if (!string.IsNullOrEmpty(rawValue)) {
+            if (!string.IsNullOrEmpty(rawValue))
+            {
                 string[] tokens = rawValue.Split('_');
-                if (tokens.Length == 3) {
-                    try {
-                        heatVision = new HeatVision {
+                if (tokens.Length == 3)
+                {
+                    try
+                    {
+                        heatVision = new HeatVision
+                        {
                             AttackMod = Int32.Parse(tokens[0]),
                             HeatDivisor = float.Parse(tokens[1]),
                             MaximumRange = Int32.Parse(tokens[2])
                         };
-                    } catch (Exception) {
+                    }
+                    catch (Exception)
+                    {
                         Mod.Log.Info?.Write($"Failed to tokenize HeatVision value: ({rawValue}). Discarding!");
                         heatVision = null;
                     }
-                } else {
+                }
+                else
+                {
                     Mod.Log.Info?.Write($"WARNING: Invalid HeatVision value: ({rawValue}) found. Discarding!");
                 }
             }
@@ -213,20 +269,28 @@ namespace LowVisibility.Object {
 
             // Narc effect - <signatureMod>_<detailsMod>_<attackMod>
             rawValue = actor.StatCollection.GetValue<string>(ModStats.NarcEffect);
-            if (!string.IsNullOrEmpty(rawValue)) { 
+            if (!string.IsNullOrEmpty(rawValue))
+            {
                 string[] tokens = rawValue.Split('_');
-                if (tokens.Length == 3) {
-                    try {
-                        narcEffect = new NarcEffect {
+                if (tokens.Length == 3)
+                {
+                    try
+                    {
+                        narcEffect = new NarcEffect
+                        {
                             SignatureMod = float.Parse(tokens[0]),
                             DetailsMod = Int32.Parse(tokens[1]),
-                            AttackMod = Int32.Parse(tokens[2]), 
+                            AttackMod = Int32.Parse(tokens[2]),
                         };
-                    } catch (Exception) {
+                    }
+                    catch (Exception)
+                    {
                         Mod.Log.Info?.Write($"Failed to tokenize NarcEffect value: ({rawValue}). Discarding!");
                         stealth = null;
                     }
-                } else {
+                }
+                else
+                {
                     Mod.Log.Info?.Write($"WARNING: Invalid NarcEffect value: ({rawValue}) found. Discarding!");
                 }
             }
@@ -234,20 +298,28 @@ namespace LowVisibility.Object {
 
             // Tag effect - <signatureMod>_<detailsMod>_<attackMod>
             rawValue = actor.StatCollection.GetValue<string>(ModStats.TagEffect);
-            if (!string.IsNullOrEmpty(rawValue)) {
+            if (!string.IsNullOrEmpty(rawValue))
+            {
                 string[] tokens = rawValue.Split('_');
-                if (tokens.Length == 3) {
-                    try {
-                        tagEffect = new TagEffect {
+                if (tokens.Length == 3)
+                {
+                    try
+                    {
+                        tagEffect = new TagEffect
+                        {
                             SignatureMod = float.Parse(tokens[0]),
                             DetailsMod = Int32.Parse(tokens[1]),
                             AttackMod = Int32.Parse(tokens[2]),
                         };
-                    } catch (Exception) {
+                    }
+                    catch (Exception)
+                    {
                         Mod.Log.Info?.Write($"Failed to tokenize TagEffect value: ({rawValue}). Discarding!");
                         stealth = null;
                     }
-                } else {
+                }
+                else
+                {
                     Mod.Log.Info?.Write($"WARNING: Invalid TagEffect value: ({rawValue}) found. Discarding!");
                 }
             }
@@ -259,11 +331,13 @@ namespace LowVisibility.Object {
             nightVision = actor.StatCollection.GetValue<bool>(ModStats.NightVision);
         }
 
+        // Statics to track state
         public static Dictionary<AbstractActor, EWState> EWStateCache = new Dictionary<AbstractActor, EWState>();
 
         public static bool InBatchProcess { get; set; }
 
-        public static void ResetCache() {
+        public static void ResetCache()
+        {
             EWStateCache.Clear();
             InBatchProcess = false;
         }
@@ -273,13 +347,28 @@ namespace LowVisibility.Object {
         public int GetRawTactics() { return tacticsMod; }
 
         // ECM
-        public int GetRawECMJammed() { return jammedByECMMod;  }
+        public int ECMJammedAttackMod()
+        {
 
-        public float ECMSignatureMod(EWState attackerState) {
-            
+            if (jammedByECMMod <= 0) { return 0; }
+
+            int strength = (int)Math.Floor(jammedByECMMod * Mod.Config.Attack.JammedMulti);
+
+            strength = Math.Max(0, strength);
+
+            return strength;
+        }
+        public int GetRawECMJammed()
+        {
+            return jammedByECMMod >= 0 ? jammedByECMMod : 0;
+        }
+
+        public float ECMSignatureMod(EWState attackerState)
+        {
+
             if (shieldedByECMMod <= 0) { return 0f; }
 
-            int strength = shieldedByECMMod - attackerState.ProbeCarrierMod();
+            int strength = shieldedByECMMod;
             if (this.PingedByProbeMod() > 0) { strength -= this.PingedByProbeMod(); }
             if (attackerState.ProbeCarrierMod() > 0) { strength -= attackerState.ProbeCarrierMod(); }
 
@@ -289,9 +378,10 @@ namespace LowVisibility.Object {
             float sigMod = strength * 0.1f;
             if (sigMod != 0) { Mod.Log.Trace?.Write($"Target:({CombatantUtils.Label(actor)}) has ECMSignatureMod:{sigMod}"); }
 
-            return sigMod;
+            return -1f * sigMod;
         }
-        public int ECMDetailsMod(EWState attackerState) {
+        public int ECMDetailsMod(EWState attackerState)
+        {
 
             if (shieldedByECMMod <= 0) { return 0; }
 
@@ -304,34 +394,50 @@ namespace LowVisibility.Object {
             return strength;
         }
 
-        // Defender modifier
-        public int ECMAttackMod(EWState attackerState) {
+        // Shield modifier adjusted for active probe carrier & probe pinged
+        public int ECMAttackMod(EWState attackerState)
+        {
 
             if (shieldedByECMMod <= 0) { return 0; }
 
-            int strength = shieldedByECMMod;
+            int strength = (int)Math.Floor(shieldedByECMMod * Mod.Config.Attack.ShieldedMulti);
+
             if (this.PingedByProbeMod() > 0) { strength -= this.PingedByProbeMod(); }
             if (attackerState.ProbeCarrierMod() > 0) { strength -= attackerState.ProbeCarrierMod(); }
 
             strength = Math.Max(0, strength);
-            
+
             return strength;
         }
-        public int GetRawECMShield() { return shieldedByECMMod; }
+        public int GetRawECMShield()
+        {
+            return shieldedByECMMod >= 0 ? shieldedByECMMod : 0;
+        }
+
 
         // Sensors
         public int AdvancedSensorsMod() { return advSensorsCarrierMod; }
         public float GetSensorsRangeMulti() { return ewCheck / 20.0f + tacticsMod / 10.0f; }
-        public float GetSensorsBaseRange() {
-            if (actor.GetType() == typeof(Mech)) {
-                return Mod.Config.Sensors.MechTypeRange * 30.0f;
-            } else if (actor.GetType() == typeof(Vehicle)) {
-                return Mod.Config.Sensors.VehicleTypeRange * 30.0f;
-            } else if (actor.GetType() == typeof(Turret)) {
-                return Mod.Config.Sensors.TurretTypeRange * 30.0f;
-            } else {
-                return Mod.Config.Sensors.UnknownTypeRange * 30.0f;
+        public float GetSensorsBaseRange()
+        {
+
+            if (actor is Mech)
+            {
+                if (actor.TrooperSquad())
+                    return Mod.Config.Sensors.TrooperRange;
+                else if (actor.NavalUnit())
+                    return Mod.Config.Sensors.VehicleRange;
+                else if (actor.FakeVehicle())
+                    return Mod.Config.Sensors.VehicleRange;
+                else
+                    return Mod.Config.Sensors.MechRange;
             }
+            else if (actor is Vehicle)
+                return Mod.Config.Sensors.VehicleRange;
+            else if (actor is Turret)
+                return Mod.Config.Sensors.TurretRange;
+            else
+                return Mod.Config.Sensors.UnknownRange;
         }
 
         // Probes
@@ -339,200 +445,260 @@ namespace LowVisibility.Object {
         public int PingedByProbeMod() { return pingedByProbeMod; }
 
         // Stealth
-        public float StealthSignatureMod(EWState attackerState) {
+        public float StealthSignatureMod(EWState attackerState)
+        {
             float strength = this.stealth != null ? this.stealth.SignatureMulti : 0.0f;
 
-            if (this.PingedByProbeMod() > 0) { strength -= (this.PingedByProbeMod() * 0.05f); }
-            if (attackerState.ProbeCarrierMod() > 0) { strength -= (attackerState.ProbeCarrierMod() * 0.05f); }
+            if (strength > 0)
+            {
+                // Probe only applies if stealth sig starts out positive
+                if (this.PingedByProbeMod() > 0) { strength -= (this.PingedByProbeMod() * 0.05f); }
+                if (attackerState.ProbeCarrierMod() > 0) { strength -= (attackerState.ProbeCarrierMod() * 0.05f); }
 
-            strength = Math.Max(0, strength);
-            
-            return strength;
+                strength = Math.Max(0, strength);
+            }
+
+            // Invert the value to be a signature reduction
+            return strength * -1;
         }
-        public int StealthDetailsMod() { return HasStealth() ? stealth.DetailsMod: 0; }
+
+        public int StealthDetailsMod() { return HasStealth() ? stealth.DetailsMod : 0; }
         // Defender modifier
-        public int StealthAttackMod(EWState attackerState, Weapon weapon, float distance) {
+        public int StealthAttackMod(EWState attackerState, Weapon weapon, float attackerDistance)
+        {
             if (stealth == null) { return 0; }
 
             int strength = 0;
-            if (distance < weapon.MediumRange) {
+            if (attackerDistance <= weapon.ShortRange)
+            {
+                strength = 0;
+            }
+            else if (attackerDistance <= weapon.MediumRange)
+            {
                 strength = stealth.MediumRangeAttackMod;
-            } else if (distance < weapon.LongRange) {
+            }
+            else if (attackerDistance <= weapon.LongRange)
+            {
                 strength = stealth.LongRangeAttackMod;
-            } else if (distance < weapon.MaxRange) {
+            }
+            else if (attackerDistance <= weapon.MaxRange)
+            {
                 strength = stealth.ExtremeRangeAttackMod;
             }
 
-            if (this.PingedByProbeMod() > 0) { strength -= this.PingedByProbeMod(); }
-            if (attackerState.ProbeCarrierMod() > 0) { strength -= attackerState.ProbeCarrierMod(); }
+            if (strength > 0)
+            {
+                if (this.PingedByProbeMod() > 0) { strength -= this.PingedByProbeMod(); }
+                if (attackerState.ProbeCarrierMod() > 0) { strength -= attackerState.ProbeCarrierMod(); }
 
-            strength = Math.Max(0, strength);
+                strength = Math.Max(0, strength);
+            }
 
+            // Positive value is a negative to attacker, so leave as straight value
             return strength;
         }
         public bool HasStealth() { return stealth != null; }
         public Stealth GetRawStealth() { return stealth; }
 
         // Mimetic
-        public float MimeticVisibilityMod(EWState attackerState) {
-            float strength = CurrentMimeticPips() * 0.05f;
+        public float MimeticVisibilityMod(EWState attackerState)
+        {
+            // If no mimetic, return
+            if (!HasMimetic()) return 1f;
 
-            if (this.PingedByProbeMod() > 0) { strength -= (this.PingedByProbeMod() * 0.05f); }
-            if (attackerState.ProbeCarrierMod() > 0) { strength -= (attackerState.ProbeCarrierMod() * 0.05f); }
+            int charges = CurrentMimeticPips();
+            if (this.PingedByProbeMod() > 0)
+                charges -= this.PingedByProbeMod();
+            if (attackerState.ProbeCarrierMod() != 0)
+                charges -= attackerState.ProbeCarrierMod();
 
-            strength = Math.Max(0, strength);
+            float visibility = charges > 0 ? 1f - (charges * mimetic.VisibilityMod) : 1f;
 
-            return strength;
+            return visibility;
         }
         // Defender modifier
-        public int MimeticAttackMod(EWState attackerState) {
-            if (mimetic == null) { return 0;  }
+        public int MimeticAttackMod(EWState attackerState)
+        {
+            // If no mimetic, return
+            if (!HasMimetic()) return 0;
 
-            int strength = CurrentMimeticPips();
+            int charges = CurrentMimeticPips();
+            if (this.PingedByProbeMod() > 0)
+                charges -= this.PingedByProbeMod();
+            if (attackerState.ProbeCarrierMod() != 0)
+                charges -= attackerState.ProbeCarrierMod();
 
-            if (this.PingedByProbeMod() > 0) { strength -= this.PingedByProbeMod(); }
-            if (attackerState.ProbeCarrierMod() > 0) { strength -= attackerState.ProbeCarrierMod(); }
-
-            strength = Math.Max(0, strength);
+            int strength = charges > 0 ? (int)Math.Ceiling(charges * mimetic.AttackMod) : 0;
 
             return strength;
         }
 
-        public int CurrentMimeticPips(float distance) {
-            return CalculatePipCount(distance);
+        public int CurrentMimeticPips(float distance)
+        {
+            return MimeticCharges(distance);
         }
-        public int CurrentMimeticPips() {
+        public int CurrentMimeticPips()
+        {
             float distance = Vector3.Distance(actor.PreviousPosition, actor.CurrentPosition);
-            return CalculatePipCount(distance);
+            return MimeticCharges(distance);
         }
-        public int MaxMimeticPips() { return mimetic != null ? mimetic.AttackMod : 0; }
-        public bool HasMimetic() { return mimetic != null; }
-        private int CalculatePipCount(float distance) {
-            if (mimetic == null) { return 0;  }
+        public int MaxMimeticPips() { return mimetic != null ? mimetic.MaxCharges : 0; }
+        public bool HasMimetic() { return mimetic != null && mimetic.MaxCharges > 0; }
+
+        private int MimeticCharges(float distance)
+        {
+            if (!HasMimetic()) return 0;
 
             int hexesMoved = (int)Math.Ceiling(distance / 30f);
-//            Mod.Log.Debug?.Write($"  hexesMoved: {hexesMoved} = distanceMoved: {distance} / 30");
-
-            int pips = mimetic.AttackMod;
             int numDecays = (int)Math.Floor(hexesMoved / (float)mimetic.HexesUntilDecay);
             Mod.Log.Trace?.Write($"  -- decays = {numDecays} from currentSteps: {hexesMoved} / decayPerStep: {mimetic.HexesUntilDecay}");
-            int currentMod = Math.Max(mimetic.AttackMod - numDecays, 0);
-            Mod.Log.Trace?.Write($"  -- current: {currentMod} = initial: {mimetic.AttackMod} - decays: {numDecays}");
+            int chargesRemaining = Math.Max(mimetic.MaxCharges - numDecays, 0);
+            Mod.Log.Trace?.Write($"  -- current: {chargesRemaining} = initial: {mimetic.AttackMod} - decays: {numDecays}");
 
-            return currentMod;
+            return chargesRemaining;
         }
         public Mimetic GetRawMimetic() { return mimetic; }
 
         // ZoomVision - Attacker
-        public int GetZoomVisionAttackMod(Weapon weapon, float distance) {
-            if (zoomVision == null || weapon.Type == WeaponType.Melee || weapon.Type == WeaponType.NotSet) { return 0; }
+        public int GetZoomAttackMod(Weapon weapon, float distance)
+        {
+            if (zoomAttack == null || weapon.Type == WeaponType.Melee || weapon.Type == WeaponType.NotSet) { return 0; }
 
             int hexesBetween = (int)Math.Ceiling(distance / 30f);
             Mod.Log.Trace?.Write($"  hexesBetween: {hexesBetween} = distance: {distance} / 30");
 
-            int numDecays = (int)Math.Floor(hexesBetween / (float)zoomVision.HexesUntilDecay);
-            Mod.Log.Trace?.Write($"  -- decays = {numDecays} from currentSteps: {hexesBetween} / decayPerStep: {zoomVision.HexesUntilDecay}");
-            int currentMod = HexUtils.DecayingModifier(zoomVision.AttackMod, zoomVision.AttackCap, zoomVision.HexesUntilDecay, distance);
-            Mod.Log.Trace?.Write($"  -- current: {currentMod} = initial: {zoomVision.AttackMod} - decays: {numDecays}");
+            int numDecays = (int)Math.Floor(hexesBetween / (float)zoomAttack.HexesUntilDecay);
+            Mod.Log.Trace?.Write($"  -- decays = {numDecays} from currentSteps: {hexesBetween} / decayPerStep: {zoomAttack.HexesUntilDecay}");
+            int currentMod = HexUtils.DecayingModifier(zoomAttack.AttackMod, zoomAttack.AttackCap, zoomAttack.HexesUntilDecay, distance);
+            Mod.Log.Trace?.Write($"  -- current: {currentMod} = initial: {zoomAttack.AttackMod} - decays: {numDecays}");
 
             return currentMod;
         }
 
-        public bool HasZoomVisionToTarget(Weapon weapon, float distance, LineOfFireLevel lofLevel) {
+        public bool HasZoomVisionToTarget(Weapon weapon, float distance, LineOfFireLevel lofLevel)
+        {
             // If we're firing indirectly, zoom doesn't count
             if (weapon.IndirectFireCapable && lofLevel < LineOfFireLevel.LOFObstructed)
             {
-                Mod.Log.Debug?.Write("Line of fire is indirect - cannot use zoom!");
+                Mod.Log.Trace?.Write($"Line of fire is indirect - {weapon.UIName} cannot use zoom!");
                 return false;
             }
 
-            if (zoomVision == null || weapon.Type == WeaponType.Melee || weapon.Type == WeaponType.NotSet) {
-                Mod.Log.Debug?.Write("Zoom vision is null, weaponType is melee or unset - cannot use zoom!");
-                return false; 
+            if (zoomAttack == null || weapon.Type == WeaponType.Melee || weapon.Type == WeaponType.NotSet)
+            {
+                Mod.Log.Trace?.Write("Zoom vision is null, weaponType is melee or unset - cannot use zoom!");
+                return false;
             }
 
-            return distance < zoomVision.MaximumRange;
+            // DO NOT correct for current vision range; just return raw value
+            return distance < zoomVisionRange;
         }
-        public ZoomVision GetRawZoomVision() { return zoomVision; }
+        public ZoomAttack GetRawZoomAttack() { return zoomAttack; }
 
         // HeatVision - Attacker
-        public int GetHeatVisionAttackMod(AbstractActor target, float magnitude, Weapon weapon) {
-            if (heatVision == null || weapon.Type == WeaponType.Melee || weapon.Type == WeaponType.NotSet) { return 0; }
-
-            // Check range 
-            if (magnitude > heatVision.MaximumRange) { return 0; }
-
-            int currentMod = 0;
-            if (target is Mech targetMech) {
-                if (targetMech.CurrentHeat == 0) { return 0; }
-
-                double targetHeat = targetMech != null ? (double)targetMech.CurrentHeat : 0.0;
-                int numSteps = (int)Math.Floor(targetHeat / heatVision.HeatDivisor);
-                //Mod.Log.Debug?.Write($"  numDecays: {numSteps} = targetHeat: {targetHeat} / divisor: {heatVision.HeatDivisor}");
-
-                // remember: Negative is better
-                currentMod = Math.Max(heatVision.AttackMod - numSteps, 0);                
-                //Mod.Log.Debug?.Write($"  -- current: {currentMod} = initial: {heatVision.AttackMod} - decays: {numSteps}");
+        public int GetHeatVisionAttackMod(AbstractActor target, float distance, Weapon weapon)
+        {
+            if (this.heatVision == null || weapon.Type == WeaponType.Melee || weapon.Type == WeaponType.NotSet)
+            {
+                return 0;
             }
 
-            return currentMod;
+            int result = 0;
+            Mech mech = target as Mech;
+            if (mech != null)
+            {
+                if (mech.CurrentHeat == 0)
+                {
+                    return 0;
+                }
+
+                int targetHeatMulti = (int)Math.Floor(((mech != null) ? ((double)mech.CurrentHeat) : 0.0) / (double)this.heatVision.HeatDivisor); // target heat divided by the mod heat treshold
+                int distanceDecayMulti = (int)Math.Floor(((mech != null) ? ((double)distance) : 0.0) / (double)((float)this.heatVision.MaximumRange)); // target distance divided by the mod range bracket
+                result = Math.Min(Math.Max(this.heatVision.AttackMod * targetHeatMulti, -5) + distanceDecayMulti, 0); // Total bonus (capped between -5 and 0) = heat vision bonus - range decay
+            }
+            return result;
         }
 
-        public bool HasHeatVisionToTarget(Weapon weapon, float distance) {
-            if (heatVision == null || weapon.Type == WeaponType.Melee || weapon.Type == WeaponType.NotSet) { return false; }
-            return distance < heatVision.MaximumRange;
+        public bool HasHeatVisionToTarget(Weapon weapon, float distance)
+        {
+            if (heatVision == null || weapon.Type == WeaponType.Melee || weapon.Type == WeaponType.NotSet)
+            {
+                return false;
+            }
+            return true;
         }
+
         public HeatVision GetRawHeatVision() { return heatVision; }
 
         // NARC effects
-        public bool IsNarced(EWState attackerState) {
+        public bool IsNarced(EWState attackerState)
+        {
             return narcEffect != null;
         }
-        public int NarcAttackMod(EWState attackerState) {
+
+        public int NarcAttackMod(EWState attackerState)
+        {
             int val = 0;
-            if (narcEffect != null) {
+            if (narcEffect != null)
+            {
+                // Narc is countered by ECM. Reduce the narc effect by the ECM value
                 val = Math.Max(0, narcEffect.AttackMod - ECMAttackMod(attackerState));
             }
             return val * -1;
         }
-        public int NarcDetailsMod(EWState attackerState) {
+
+        public int NarcDetailsMod(EWState attackerState)
+        {
             int val = 0;
-            if (narcEffect != null) {
+            if (narcEffect != null)
+            {
                 val = Math.Max(0, narcEffect.DetailsMod - ECMDetailsMod(attackerState));
             }
             return val;
         }
-        public float NarcSignatureMod(EWState attackerState) {
+
+        public float NarcSignatureMod(EWState attackerState)
+        {
             float val = 0;
-            if (narcEffect != null) {
-                val = (float)Math.Max(0.0f, narcEffect.SignatureMod - ECMDetailsMod(attackerState) * 0.1f);
+            if (narcEffect != null)
+            {
+                val = (float)Math.Max(0.0f, narcEffect.SignatureMod + ECMSignatureMod(attackerState));
             }
             return val;
         }
+
         public NarcEffect GetRawNarcEffect() { return narcEffect; }
 
         // TAG effects
-        public bool IsTagged(EWState attackerState) {
+        public bool IsTagged(EWState attackerState)
+        {
             return tagEffect != null && Math.Max(0, tagEffect.AttackMod - MimeticAttackMod(attackerState)) > 0;
         }
-        public int TagAttackMod(EWState attackerState) {
+        public int TagAttackMod(EWState attackerState)
+        {
             int val = 0;
-            if (tagEffect != null) {
+            if (tagEffect != null)
+            {
                 val = Math.Max(0, tagEffect.AttackMod - MimeticAttackMod(attackerState));
             }
             return val * -1;
         }
-        public int TagDetailsMod(EWState attackerState) {
+        public int TagDetailsMod(EWState attackerState)
+        {
             int val = 0;
-            if (tagEffect != null) {
+            if (tagEffect != null)
+            {
                 val = Math.Max(0, tagEffect.DetailsMod - MimeticAttackMod(attackerState));
             }
             return val;
         }
-        public float TagSignatureMod(EWState attackerState) {
+        public float TagSignatureMod(EWState attackerState)
+        {
             float val = 0;
-            if (tagEffect != null) {
-                val = (float)Math.Max(0.0f, tagEffect.SignatureMod - MimeticVisibilityMod(attackerState));
+            if (tagEffect != null)
+            {
+                float mimeticMod = (1.0f - MimeticVisibilityMod(attackerState));
+                val = tagEffect.SignatureMod - mimeticMod;
             }
             return val;
         }
@@ -543,23 +709,25 @@ namespace LowVisibility.Object {
         public bool HasNightVision() { return nightVision; }
 
         // Misc
-        public override string ToString() {
+        public override string ToString()
+        {
             StringBuilder sb = new StringBuilder();
             sb.Append($"Raw check: {ewCheck}  tacticsMod: {tacticsMod}");
+            sb.Append($"  visionRange: {SharedState.Combat.LOS.GetSpotterRange(actor)}  sensorsRange: {SharedState.Combat.LOS.GetSensorRange(actor)}");
             sb.Append($"  ecmShieldMod: {shieldedByECMMod}  ecmJammedMod: {jammedByECMMod}");
             sb.Append($"  advSensors: {advSensorsCarrierMod}  probeCarrier: {probeCarrierMod}");
             sb.Append($"  stealth (detailsMod: {stealth?.DetailsMod} sigMulti: {stealth?.SignatureMulti} attack: {stealth?.MediumRangeAttackMod} / {stealth?.LongRangeAttackMod} / {stealth?.ExtremeRangeAttackMod})");
-            sb.Append($"  mimetic: (visibilityMulti: {mimetic?.VisibilityMulti}  attackMod: {mimetic?.AttackMod} hexesToDecay: {mimetic?.HexesUntilDecay})");
-            sb.Append($"  zoomVision: (attackMod: {zoomVision?.AttackMod} hexesToDecay: {zoomVision?.HexesUntilDecay} attackCap: {zoomVision?.AttackCap})");
-            sb.Append($"  heatVision: (attackMod: {heatVision?.AttackMod} heatDivisor: {heatVision?.HeatDivisor})");
+            sb.Append($"  mimetic: (visibilityMulti: {mimetic?.VisibilityMod}  attackMod: {mimetic?.AttackMod} hexesToDecay: {mimetic?.HexesUntilDecay})");
+            sb.Append($"  zoomVision: (attackMod: {zoomAttack?.AttackMod} hexesToDecay: {zoomAttack?.HexesUntilDecay} attackCap: {zoomAttack?.AttackCap} maxRange: {zoomAttack?.MaximumRange})");
+            sb.Append($"  heatVision: (attackMod: {heatVision?.AttackMod} heatDivisor: {heatVision?.HeatDivisor}  maxRange: {heatVision?.MaximumRange})");
             sb.Append($"  nightVision: {nightVision}  sharesVision: {sharesVision}");
             sb.Append($"  pingedByProbe: {pingedByProbeMod}");
             sb.Append($"  narcEffect: (detailsMod: {narcEffect?.DetailsMod} sigMod: {narcEffect?.SignatureMod} attackMod: {narcEffect?.AttackMod})");
             sb.Append($"  tagEffect: (detailsMod: {tagEffect?.DetailsMod} sigMod: {tagEffect?.SignatureMod} attackMod: {tagEffect?.AttackMod})");
 
-            return sb.ToString(); 
+            return sb.ToString();
         }
 
     };
-  
+
 }

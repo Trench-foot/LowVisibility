@@ -1,167 +1,111 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Target Name="ValidateBattleTechGameDir" Condition="'$(BattleTechGameDir)' == '' Or !Exists('$(BattleTechGameDir)')">
+    <Error Text="BattleTechGameDir variable not set properly" />
+  </Target>
+
+  <PropertyGroup Condition="'$(DeployedModPath)' == '' And Exists('$(BattleTechGameDir)\Mods\Core\LowVisibility')">
+    <!-- Modpack -->
+    <DeployedModPath>$(BattleTechGameDir)\Mods\Core\LowVisibility</DeployedModPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(DeployedModPath)' == '' And Exists('$(BattleTechGameDir)\Mods\LowVisibility')">
+    <!-- flat dir -->
+    <DeployedModPath>$(BattleTechGameDir)\Mods\LowVisibility</DeployedModPath>
+  </PropertyGroup>
+
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{B04084CE-078E-4683-A6E9-43DBCFCFBF22}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>LowVisibility</RootNamespace>
-    <AssemblyName>LowVisibility</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <Deterministic>true</Deterministic>
-    <TargetFrameworkProfile />
+    <TargetFramework>net472</TargetFramework>
+    <AssemblySearchPaths>
+      $(ReferencePath);
+      {HintPathFromItem};
+      $(BattleTechGameDir)\BattleTech_Data\Managed
+    </AssemblySearchPaths>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <DebugType>none</DebugType>
+    <AssemblyTitle>LowVisibility</AssemblyTitle>
+    <Product>LowVisibility</Product>
+    <Copyright>Copyright © 2023</Copyright>
+    <AssemblyVersion>2.0.3</AssemblyVersion>
+    <FileVersion>2.0.3</FileVersion>
+    <LangVersion>13</LangVersion>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Prefer32Bit>false</Prefer32Bit>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
+
+  <Target Name="AfterBuildMigrated" AfterTargets="CopyFilesToOutputDirectory">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BattleTechGameDir)\Mods\Core\LowVisibility" Condition="'$(BattleTechGameDir)' != '' And Exists('$(BattleTechGameDir)\Mods\Core\LowVisibility')" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BattleTechGameDir)\Mods_CBDE\Core\LowVisibility" Condition="'$(BattleTechGameDir)' != '' And Exists('$(BattleTechGameDir)\Mods_CBDE\Core\LowVisibility')" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(RogueTechRepo)\Core\LowVisibility" Condition="'$(RogueTechRepo)' != '' And Exists('$(RogueTechRepo)\Core\LowVisibility')" />
+  </Target>
+
+  <PropertyGroup>
+    <!-- avoids IgnoresAccessChecksToAttribute warnings -->
+    <PublicizerRuntimeStrategies>Unsafe</PublicizerRuntimeStrategies>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="0Harmony">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\0Harmony.dll</HintPath>
-      <Private>False</Private>
+    <PackageReference Include="Krafs.Publicizer" Version="2.2.1" />
+    <Publicize Include="Assembly-CSharp;UnityEngine.UI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HarmonyX" Version="2.10.1">
+      <PrivateAssets>all</PrivateAssets>
+      <ExcludeAssets>runtime</ExcludeAssets>
+    </PackageReference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>obj\Debug\net472\PublicizedAssemblies\Assembly-CSharp.DA4053FF61CE77AE57BED9B525AEEA2E\Assembly-CSharp.dll</HintPath>
     </Reference>
-    <Reference Include="Assembly-CSharp, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\Assembly-CSharp.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Assembly-CSharp-firstpass, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>..\..\..\..\..\..\BATTLETECH\BattleTech_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
     </Reference>
     <Reference Include="CustomActivatableEquipment">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CustomActivatableEquipment\CustomActivatableEquipment.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\..\BATTLETECH\Mods\CustomActivatableEquipment\CustomActivatableEquipment.dll</HintPath>
     </Reference>
     <Reference Include="CustomAmmoCategories">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CustomAmmoCategories\CustomAmmoCategories.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\..\BATTLETECH\Mods\CustomAmmoCategories\CustomAmmoCategories.dll</HintPath>
     </Reference>
-    <Reference Include="CustomComponents">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\CustomComponents\CustomComponents.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="CustomUnits">
+      <HintPath>..\..\..\..\..\..\BATTLETECH\Mods\CustomUnits\CustomUnits.dll</HintPath>
     </Reference>
-    <Reference Include="IRBTModUtils, Version=1.6.1.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\IRBTModUtils\IRBTModUtils.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="IRBTModUtils">
+      <HintPath>..\..\..\..\..\..\BATTLETECH\Mods\IRBTModUtils\IRBTModUtils.dll</HintPath>
     </Reference>
-    <Reference Include="MechEngineer">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\Mods\MechEngineer\MechEngineer.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="IRTweaks">
+      <HintPath>..\..\..\..\..\..\BATTLETECH\Mods\IRTweaks\IRTweaks.dll</HintPath>
     </Reference>
-    <Reference Include="Newtonsoft.Json, Version=6.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\Newtonsoft.Json.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\..\..\..\..\..\BATTLETECH\BattleTech_Data\Managed\Newtonsoft.Json.dll</HintPath>
     </Reference>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Xml" />
+    <Reference Include="System">
+      <HintPath>..\..\..\..\..\..\BATTLETECH\BattleTech_Data\Managed\System.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Core">
+      <HintPath>..\..\..\..\..\..\BATTLETECH\BattleTech_Data\Managed\System.Core.dll</HintPath>
+    </Reference>
     <Reference Include="Unity.TextMeshPro">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\Unity.TextMeshPro.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\..\BATTLETECH\BattleTech_Data\Managed\Unity.TextMeshPro.dll</HintPath>
     </Reference>
-    <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\UnityEngine.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="UnityEngine">
+      <HintPath>..\..\..\..\..\..\BATTLETECH\BattleTech_Data\Managed\UnityEngine.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.AssetBundleModule">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\..\BATTLETECH\BattleTech_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\..\BATTLETECH\BattleTech_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.ParticleSystemModule">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\..\BATTLETECH\BattleTech_Data\Managed\UnityEngine.ParticleSystemModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.PhysicsModule">
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
-      <Private>False</Private>
+      <HintPath>..\..\..\..\..\..\BATTLETECH\BattleTech_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
     </Reference>
-    <Reference Include="UnityEngine.UI, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>E:\steam\SteamApps\common\BATTLETECH\BattleTech_Data\Managed\UnityEngine.UI.dll</HintPath>
-      <Private>False</Private>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>obj\Debug\net472\PublicizedAssemblies\UnityEngine.UI.7A3535577E24162C9F0CE63F1A5AC061\UnityEngine.UI.dll</HintPath>
     </Reference>
   </ItemGroup>
+  
   <ItemGroup>
-    <Compile Include="Helper\ActorHelper.cs" />
-    <Compile Include="Helper\CombatHUDHelper.cs" />
-    <Compile Include="Helper\SelectedActorHelper.cs" />
-    <Compile Include="Helper\SensorLockHelper.cs" />
-    <Compile Include="Helper\VfxHelper.cs" />
-    <Compile Include="Helper\VisualLockHelper.cs" />
-    <Compile Include="Helper\WeaponHelper.cs" />
-    <Compile Include="Object\ActionSemaphore.cs" />
-    <Compile Include="Object\EWState.cs" />
-    <Compile Include="Helper\MapHelper.cs" />
-    <Compile Include="ModInit.cs" />
-    <Compile Include="Object\MarkGOContainer.cs" />
-    <Compile Include="Object\Visibility.cs" />
-    <Compile Include="Object\VisibilityCacheGate.cs" />
-    <Compile Include="Patch\AbilityPatches.cs" />
-    <Compile Include="Patch\AI\AIUtilPatches.cs" />
-    <Compile Include="Patch\ArmorAndStructPatches.cs" />
-    <Compile Include="Patch\AbstractActorPatches.cs" />
-    <Compile Include="Patch\CombatGameStatePatches.cs" />
-    <Compile Include="Patch\FogOfWarPatches.cs" />
-    <Compile Include="Patch\HUD\CombatHUDActorInfoPatches.cs" />
-    <Compile Include="Patch\HUD\CombatHUDMarkDisplay.cs" />
-    <Compile Include="Patch\HUD\NameDisplayPatches.cs" />
-    <Compile Include="Patch\HUD\CombatHUDPatches.cs" />
-    <Compile Include="Patch\HUD\CombatHUDStealthBarPipsPatches.cs" />
-    <Compile Include="Patch\HUD\CombatHUDTargetingComputerPatches.cs" />
-    <Compile Include="Patch\ComponentPatches.cs" />
-    <Compile Include="Patch\HUD\CombatHUDWeaponSlotPatches.cs" />
-    <Compile Include="Patch\LineOfSightPatches.cs" />
-    <Compile Include="Patch\CombatPatches.cs" />
-    <Compile Include="Patch\MechComponentPatches.cs" />
-    <Compile Include="Patch\AI\AttackEvaluatorPatches.cs" />
-    <Compile Include="Patch\AI\MultiAttackPatches.cs" />
-    <Compile Include="Patch\NightVisionPatches.cs" />
-    <Compile Include="Patch\PilotableActorRepresentationPatches.cs" />
-    <Compile Include="Patch\SelectionStatePatches.cs" />
-    <Compile Include="Patch\SerializationPatches.cs" />
-    <Compile Include="Patch\TeamPatch.cs" />
-    <Compile Include="Patch\ToHitPatches.cs" />
-    <Compile Include="Patch\TurnDirectorPatches.cs" />
-    <Compile Include="Patch\HUD\CombatHUDStatusPanelPatches.cs" />
-    <Compile Include="Patch\UI\VisRangeIndicatorPatches.cs" />
-    <Compile Include="Patch\VisibilityCachePatches.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="ModState.cs" />
-    <Compile Include="ModConfig.cs" />
+    <Compile Remove="Patch\HUD\CombatHUDMechTrayPatches.cs" />
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>xcopy "$(TargetDir)$(TargetFileName)" "$(BattleTechGame)\Mods\LowVisibility" /y</PostBuildEvent>
-  </PropertyGroup>
+  
 </Project>
